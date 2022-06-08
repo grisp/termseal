@@ -116,8 +116,8 @@ cert_to_pubkey(Cert) ->
         #'ECPoint'{} -> {ECPublicKeyData, ECPublicKeyParameters}
     end.
 
-unseal_unsigned(Data, #{allow_unsigned := true}) ->
-    {unsigned, binary_to_term(Data, [safe])};
+unseal_unsigned(Data, #{allow_unsigned := true} = Opts) ->
+    {unsigned, unserialize(Data, Opts)};
 unseal_unsigned(_Data, _Opts) ->
     throw(unsigned_seal_not_allowed).
 
@@ -125,9 +125,12 @@ unseal_signed(Data, Sig, Certs, Opts) ->
     AllowBadSig = maps:get(allow_bad_signature, Opts, false),
     case {AllowBadSig, verify_data(Data, Sig, Certs)} of
         {false, false} -> throw(bad_signature);
-        {true, false} -> {bad_signature, binary_to_term(Data, [safe])};
-        {_, true} -> {verified, binary_to_term(Data, [safe])}
+        {true, false} -> {bad_signature, unserialize(Data, Opts)};
+        {_, true} -> {verified, unserialize(Data, Opts)}
     end.
+
+unserialize(Data, #{safe := true}) -> binary_to_term(Data, [safe]);
+unserialize(Data, _Opts) -> binary_to_term(Data, []).
 
 verify_data(_Data, _Sig, []) -> false;
 verify_data(Data, Sig, [Cert | Rest]) ->

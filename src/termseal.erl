@@ -88,7 +88,8 @@ read_file(Filename) ->
 decode_key(Filename, Data) ->
     Entries = public_key:pem_decode(Data),
     KeyEntries = [E || {T, _, not_encrypted} = E <- Entries,
-                  T =:= 'ECPrivateKey' orelse T =:= 'RSAPrivateKey'],
+                  T =:= 'ECPrivateKey' orelse T =:= 'RSAPrivateKey'
+                  orelse T =:= 'PrivateKeyInfo'],
     case KeyEntries  of
         [] -> throw({key_not_found, Filename});
         [KeyEntry] -> public_key:pem_entry_decode(KeyEntry);

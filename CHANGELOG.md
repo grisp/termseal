@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Load properly generic private key PEM entries 'PrivateKeyInfo'.
+
 ## [0.1.0] - 2024-09-02
 
 First release

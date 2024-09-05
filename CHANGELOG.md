@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2024-09-05
+
 ### Fixed
 
 - Load properly generic private key PEM entries 'PrivateKeyInfo'.
@@ -16,5 +18,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 First release
 
 
-[Unreleased]: https://github.com/grisp/termseal/compare/0.1.0...HEAD
+[Unreleased]: https://github.com/grisp/termseal/compare/0.1.1...HEAD
+[0.1.1]: https://github.com/grisp/termseal/compare/0.1.0...0.1.1
 [0.1.0]: https://github.com/grisp/termseal/compare/4f87e9fffb7ac19be8f588c44e60ea1a9cf71c77...0.1.0

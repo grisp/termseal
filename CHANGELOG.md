@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add a CommonTest TSF v1 regression baseline with frozen compatibility fixtures for signed and unsigned seals, malformed-input handling, and key-loading edge cases.
+
+### Changed
+
+- Configure Dialyzer to include the OTP applications needed for `public_key`-based analysis.
+
 ## [0.1.1] - 2024-09-05
 
 ### Fixed

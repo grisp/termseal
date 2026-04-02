@@ -1,5 +1,5 @@
 termseal
-=====
+========
 
 Erlang Term Sealing library
 

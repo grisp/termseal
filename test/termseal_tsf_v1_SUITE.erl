@@ -1,12 +1,12 @@
 -module(termseal_tsf_v1_SUITE).
 
-%--- Incudes -------------------------------------------------------------------
+%=== INCLUDES ==================================================================
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("stdlib/include/assert.hrl").
 
 
-%--- Exports -------------------------------------------------------------------
+%=== EXPORTS ===================================================================
 
 -export([all/0, init_per_suite/1, end_per_suite/1]).
 -export([unsigned_fixture_roundtrip/1,
@@ -26,7 +26,7 @@
          load_certificates_ignores_non_certificate_entries/1]).
 
 
-%--- Common Test Callbacks -----------------------------------------------------
+%=== COMMON TEST CALLBACKS =====================================================
 
 all() ->
     [unsigned_fixture_roundtrip,
@@ -54,7 +54,7 @@ end_per_suite(_Config) ->
     ok.
 
 
-%--- Test Suites ---------------------------------------------------------------
+%=== TEST FUNCTIONS ============================================================
 
 unsigned_fixture_roundtrip(_Config) ->
     Box = load_fixture(_Config, ["seals", "fixture_tsf_v1_unsigned.base64"]),
@@ -148,7 +148,7 @@ load_certificates_ignores_non_certificate_entries(Config) ->
     ?assertEqual([], termseal:load_certificates(fixture_path(Config, ["keys", "two_keys.pem"]))).
 
 
-%--- Internal Functions --------------------------------------------------------
+%=== INTERNAL FUNCTIONS ========================================================
 
 fixture_term() ->
     {1, a, #{foo => "bar", buz => 42}, [-1]}.

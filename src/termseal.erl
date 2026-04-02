@@ -1,37 +1,118 @@
+%% SPDX-FileCopyrightText: 2026 Stritzinger GmbH <peer@stritzinger.com>
+%% SPDX-License-Identifier: Apache-2.0
+
 -module(termseal).
+-moduledoc """
+Seal and unseal Erlang terms.
 
+This module preserves the legacy TSF v1 sealing format while exposing the
+canonical payload helpers used by newer signing flows.
+""".
 
-%--- Includes ------------------------------------------------------------------
+%=== INCLUDES ==================================================================
 
 -include_lib("public_key/include/public_key.hrl").
 
 
-%--- Exports -------------------------------------------------------------------
+%=== EXPORTS ===================================================================
 
 % API functions
+-export([canonicalization_id/0]).
+-export([signing_payload/1, signing_payload/2]).
+-export([signing_request/1, signing_request/2]).
 -export([load_private_key/1]).
 -export([load_certificates/1]).
 -export([seal/1, seal/2]).
 -export([unseal/2, unseal/3]).
 
 
-%--- Macros --------------------------------------------------------------------
+%=== TYPES =====================================================================
+
+-doc "Canonicalization identifiers accepted by `signing_payload/2`.".
+-type canonicalization_id() ::
+    erlang_etf_minor_v2_legacy | termseal_cbor_erlang_v1.
+
+-doc "Normalized signer request returned by `signing_request/1,2`.".
+-type signing_request() :: #{
+    canonicalization_id := canonicalization_id(),
+    payload := binary(),
+    payload_digest := binary(),
+    signing_digest := binary(),
+    signing_subject := payload,
+    signature_hash := sha256,
+    signature_scheme := direct_signature
+}.
+
+-doc "Verification result returned by `unseal/2,3`.".
+-type unseal_result() ::
+    {verified, term()} | {unsigned, term()} | {bad_signature, term()}.
+
+
+%=== MACROS ====================================================================
 
 -define(MAGIC, "TSF").
 -define(VERSION, 1).
 -define(SIGHASH, sha256).
 
 
-%--- API Functions -------------------------------------------------------------
+%=== API FUNCTIONS =============================================================
 
+-doc "Return the default canonicalization identifier for canonical payloads.".
+-spec canonicalization_id() -> termseal_cbor_erlang_v1.
+canonicalization_id() ->
+    termseal_cbor_erlang:canonicalization_id().
+
+-doc "Encode `Term` using the default canonicalization.".
+-spec signing_payload(term()) -> binary().
+signing_payload(Term) ->
+    signing_payload(Term, canonicalization_id()).
+
+-doc "Encode `Term` using the selected canonicalization.".
+-spec signing_payload(term(), canonicalization_id()) -> binary().
+signing_payload(Term, erlang_etf_minor_v2_legacy) ->
+    term_to_binary(Term, [{minor_version, 2}]);
+signing_payload(Term, termseal_cbor_erlang_v1) ->
+    case termseal_cbor_erlang:encode(Term) of
+        {ok, Payload} -> Payload;
+        {error, Reason} -> throw({canonicalization_error, Reason})
+    end;
+signing_payload(_Term, CanonicalizationId) ->
+    throw({unsupported_canonicalization_id, CanonicalizationId}).
+
+-doc "Build a normalized signing request with the default canonicalization.".
+-spec signing_request(term()) -> signing_request().
+signing_request(Term) ->
+    signing_request(Term, canonicalization_id()).
+
+-doc "Build a normalized signing request for `Term`.".
+-spec signing_request(term(), canonicalization_id()) -> signing_request().
+signing_request(Term, CanonicalizationId) ->
+    Payload = signing_payload(Term, CanonicalizationId),
+    PayloadDigest = crypto:hash(?SIGHASH, Payload),
+    #{
+        canonicalization_id => CanonicalizationId,
+        payload => Payload,
+        payload_digest => PayloadDigest,
+        signing_digest => PayloadDigest,
+        signing_subject => payload,
+        signature_hash => ?SIGHASH,
+        signature_scheme => direct_signature
+    }.
+
+-doc "Load a private signing key from a PEM file.".
+-spec load_private_key(file:filename_all()) -> term().
 load_private_key(Filename) ->
     decode_key(Filename, read_file(Filename)).
 
+-doc "Load all certificates from a PEM file.".
+-spec load_certificates(file:filename_all()) -> [term()].
 load_certificates(Filename) ->
     %TODO: Verify certificates expiration
     %TODO: Verify certification chain
     decode_certs(read_file(Filename)).
 
+-doc "Create an unsigned TSF v1 box.".
+-spec seal(term()) -> binary().
 seal(Term) ->
     Data = term_to_binary(Term, [{minor_version, 2}]),
     <<
@@ -42,6 +123,13 @@ seal(Term) ->
         Data/binary
     >>.
 
+-doc """
+Seal `Term` using the legacy TSF v1 format.
+
+Passing `undefined` produces an unsigned box. Passing a private key produces a
+signed TSF v1 box.
+""".
+-spec seal(term(), undefined | term()) -> binary().
 seal(Term, undefined) -> seal(Term);
 seal(Term, Key) ->
     Data = term_to_binary(Term, [{minor_version, 2}]),
@@ -56,9 +144,13 @@ seal(Term, Key) ->
         Data/binary
     >>.
 
+-doc "Unseal `Data` using the provided certificate list.".
+-spec unseal(binary(), [term()]) -> unseal_result().
 unseal(Data, Certs) ->
     unseal(Data, Certs, #{}).
 
+-doc "Unseal `Data` with explicit verification options.".
+-spec unseal(binary(), [term()], map()) -> unseal_result().
 unseal(<<?MAGIC,?VERSION:16/unsigned-big-integer, Body/binary>>, Certs, Opts) ->
     case Body of
         <<1:1, _:15,
@@ -77,7 +169,7 @@ unseal(_Data, _Certs, _Opts) ->
     throw(invalid_seal_data).
 
 
-%--- Internal Functions --------------------------------------------------------
+%=== INTERNAL FUNCTIONS ========================================================
 
 read_file(Filename) ->
     case file:read_file(Filename) of

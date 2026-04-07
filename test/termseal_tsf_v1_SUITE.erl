@@ -1,3 +1,6 @@
+%% SPDX-FileCopyrightText: 2026 Stritzinger GmbH <peer@stritzinger.com>
+%% SPDX-License-Identifier: Apache-2.0
+
 -module(termseal_tsf_v1_SUITE).
 
 %=== INCLUDES ==================================================================

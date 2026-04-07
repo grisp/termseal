@@ -1,0 +1,27 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: termseal
+Source: https://github.com/grisp/termseal
+
+Files: .gitignore
+ .tool-versions
+ CHANGELOG.md
+ README.md
+ docs/CANONICALIZATION.md
+ rebar.config
+ rebar.lock
+ src/termseal.app.src
+Copyright: 2026 Stritzinger GmbH <peer@stritzinger.com>
+License: Apache-2.0
+
+Files: test/termseal_cms_sealing_SUITE_data/certs/*
+ test/termseal_cms_sealing_SUITE_data/keys/*
+ test/termseal_cms_verification_SUITE_data/certs/*
+ test/termseal_cms_verification_SUITE_data/keys/*
+ test/termseal_cms_verification_SUITE_data/seals/*
+ test/termseal_tsf_v1_SUITE_data/certs/*
+ test/termseal_tsf_v1_SUITE_data/keys/*
+ test/termseal_tsf_v1_SUITE_data/seals/*
+Copyright: 2026 Stritzinger GmbH <peer@stritzinger.com>
+License: Apache-2.0
+Comment: Generated and maintained as test fixture material for REUSE-covered
+ termseal regression suites.

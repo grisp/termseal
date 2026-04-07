@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `disable_expiration_validation` for CMS unsealing so controlled tests can bypass certificate expiry checks when needed.
 - Add a reproducible test fixture generator at `test/generate_test_fixtures.py` for CMS verification, CMS sealing, and TSF v1 certificate material.
 - Add test coverage for opt-in signer-certificate expiration validation in both legacy TSF v1 direct verification and CMS direct-cert verification.
+- Add tamper-path verification coverage for TSF v1 payload mutation and CMS signature and payload mutation.
 
 ### Changed
 

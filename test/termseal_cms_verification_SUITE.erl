@@ -9,6 +9,7 @@ Common Test contract coverage for the planned CMS verification path in `termseal
 %=== INCLUDES ==================================================================
 
 -include_lib("common_test/include/ct.hrl").
+-include_lib("public_key/include/public_key.hrl").
 -include_lib("stdlib/include/assert.hrl").
 
 
@@ -23,6 +24,8 @@ Common Test contract coverage for the planned CMS verification path in `termseal
          direct_cert_verifies_with_trusted_signer_certificate/1,
          direct_cert_accepts_expired_signer_without_validation/1,
          direct_cert_rejects_expired_signer_when_validation_enabled/1,
+         tampered_cms_signature_is_rejected/1,
+         tampered_cms_payload_is_rejected/1,
          positional_root_certificate_does_not_act_as_trust_anchor/1,
          wrong_trust_anchor_is_rejected/1,
          missing_intermediate_chain_is_rejected/1,
@@ -46,6 +49,8 @@ all() ->
      direct_cert_verifies_with_trusted_signer_certificate,
      direct_cert_accepts_expired_signer_without_validation,
      direct_cert_rejects_expired_signer_when_validation_enabled,
+     tampered_cms_signature_is_rejected,
+     tampered_cms_payload_is_rejected,
      positional_root_certificate_does_not_act_as_trust_anchor,
      wrong_trust_anchor_is_rejected,
      missing_intermediate_chain_is_rejected,
@@ -102,6 +107,14 @@ direct_cert_rejects_expired_signer_when_validation_enabled(Config) ->
             #{validate_signer_cert_expiration => true}
         )
     ).
+
+tampered_cms_signature_is_rejected(Config) ->
+    Box = tamper_cms_signature(load_seal_fixture(Config, "fixture_cms_valid_signed.base64")),
+    assert_cms_bad_signature_for_all_modes(Config, Box).
+
+tampered_cms_payload_is_rejected(Config) ->
+    Box = tamper_cms_payload(load_seal_fixture(Config, "fixture_cms_valid_signed.base64")),
+    assert_cms_invalid_seal_for_all_modes(Config, Box).
 
 positional_root_certificate_does_not_act_as_trust_anchor(Config) ->
     Box = load_seal_fixture(Config, "fixture_cms_valid_signed.base64"),
@@ -275,6 +288,98 @@ assert_expired_chain_is_accepted(Config, SealFixture, TrustAnchors) ->
         disable_expiration_validation => true
     },
     ?assertEqual({verified, fixture_term()}, termseal:unseal(Box, [], Opts)).
+
+assert_cms_bad_signature_for_all_modes(Config, Box) ->
+    ?assertThrow(
+        bad_signature,
+        termseal:unseal(Box, valid_signer_certs(Config), #{})
+    ),
+    ?assertThrow(
+        bad_signature,
+        termseal:unseal(
+            Box,
+            [],
+            #{
+                trust_anchors => valid_root_certs(Config),
+                unseal_mode => trust_anchor
+            }
+        )
+    ),
+    ?assertThrow(
+        bad_signature,
+        termseal:unseal(
+            Box,
+            valid_signer_certs(Config),
+            #{trust_anchors => valid_root_certs(Config)}
+        )
+    ).
+
+assert_cms_invalid_seal_for_all_modes(Config, Box) ->
+    ?assertThrow(
+        invalid_seal_data,
+        termseal:unseal(Box, valid_signer_certs(Config), #{})
+    ),
+    ?assertThrow(
+        invalid_seal_data,
+        termseal:unseal(
+            Box,
+            [],
+            #{
+                trust_anchors => valid_root_certs(Config),
+                unseal_mode => trust_anchor
+            }
+        )
+    ),
+    ?assertThrow(
+        invalid_seal_data,
+        termseal:unseal(
+            Box,
+            valid_signer_certs(Config),
+            #{trust_anchors => valid_root_certs(Config)}
+        )
+    ).
+
+tamper_cms_signature(Box) ->
+    #'ContentInfo'{content = SignedData} = public_key:der_decode('ContentInfo', Box),
+    [SignerInfo] = SignedData#'SignedData'.signerInfos,
+    TamperedSignerInfo =
+        SignerInfo#'SignerInfo'{
+            signature = flip_first_byte(SignerInfo#'SignerInfo'.signature)
+        },
+    public_key:der_encode(
+        'ContentInfo',
+        #'ContentInfo'{
+            contentType = ?'id-signedData',
+            content = SignedData#'SignedData'{signerInfos = [TamperedSignerInfo]}
+        }
+    ).
+
+tamper_cms_payload(Box) ->
+    #'ContentInfo'{content = SignedData} = public_key:der_decode('ContentInfo', Box),
+    EncapContentInfo = SignedData#'SignedData'.encapContentInfo,
+    SignedContent = EncapContentInfo#'EncapsulatedContentInfo'.eContent,
+    {ok, {map, Entries}} = termseal_cbor:decode(SignedContent),
+    TamperedEntries = replace_cbor_payload(Entries),
+    {ok, TamperedSignedContent} = termseal_cbor:encode({map, TamperedEntries}),
+    public_key:der_encode(
+        'ContentInfo',
+        #'ContentInfo'{
+            contentType = ?'id-signedData',
+            content = SignedData#'SignedData'{
+                encapContentInfo = EncapContentInfo#'EncapsulatedContentInfo'{
+                    eContent = TamperedSignedContent
+                }
+            }
+        }
+    ).
+
+replace_cbor_payload([{{text, <<"payload">>}, {bytes, Payload}} | Rest]) ->
+    [{{text, <<"payload">>}, {bytes, flip_first_byte(Payload)}} | Rest];
+replace_cbor_payload([Entry | Rest]) ->
+    [Entry | replace_cbor_payload(Rest)].
+
+flip_first_byte(<<Head, Tail/binary>>) ->
+    <<(Head bxor 16#01), Tail/binary>>.
 
 read_binary_file(Config, RelativePath) ->
     Path = fixture_path(Config, RelativePath),

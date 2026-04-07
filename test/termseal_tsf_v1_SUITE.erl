@@ -22,6 +22,7 @@
          generated_signed_boxes_roundtrip/1,
          multicert_verification/1,
          bad_signature_behavior/1,
+         tampered_payload_is_rejected/1,
          unsupported_version/1,
          malformed_seal_format/1,
          invalid_seal_data/1,
@@ -44,6 +45,7 @@ all() ->
      generated_signed_boxes_roundtrip,
      multicert_verification,
      bad_signature_behavior,
+     tampered_payload_is_rejected,
      unsupported_version,
      malformed_seal_format,
      invalid_seal_data,
@@ -132,6 +134,10 @@ bad_signature_behavior(Config) ->
     ?assertThrow(bad_signature, termseal:unseal(Box, rsa_certs(Config))),
     ?assertEqual({bad_signature, fixture_term()},
                  termseal:unseal(Box, rsa_certs(Config), #{allow_bad_signature => true})).
+
+tampered_payload_is_rejected(Config) ->
+    Box = tamper_payload(load_fixture(Config, ["seals", "fixture_tsf_v1_rsa_signed.base64"])),
+    ?assertThrow(bad_signature, termseal:unseal(Box, rsa_certs(Config))).
 
 
 unsupported_version(Config) ->
@@ -252,6 +258,24 @@ tamper_signature(<<$T, $S, $F,
       SigLen:32/unsigned-big-integer,
       TamperedSig/binary,
       Rest/binary>>.
+
+tamper_payload(<<$T, $S, $F,
+                 1:16/unsigned-big-integer,
+                 1:1, Reserved:15,
+                 SigLen:32/unsigned-big-integer,
+                 Sig:SigLen/binary,
+                 DataLen:32/unsigned-big-integer,
+                 Data:DataLen/binary>>) ->
+    <<"TSF",
+      1:16/unsigned-big-integer,
+      1:1, Reserved:15,
+      SigLen:32/unsigned-big-integer,
+      Sig/binary,
+      DataLen:32/unsigned-big-integer,
+      (flip_first_byte(Data))/binary>>.
+
+flip_first_byte(<<Head, Tail/binary>>) ->
+    <<(Head bxor 16#01), Tail/binary>>.
 
 
 fixture_path(Config, RelativePath) ->

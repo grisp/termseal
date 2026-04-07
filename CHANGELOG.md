@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `termseal:canonicalization_id/0`, `signing_payload/1,2`, and `signing_request/1,2` for explicit canonical payload generation independent from legacy TSF v1 sealing.
 - Add focused Common Test coverage for canonical CBOR float rules, malformed-CBOR rejection, non-canonical bignums, unsupported Erlang runtime terms, and decode-side map-key restrictions.
 - Add a CMS sealing contract suite with dedicated CMS root/intermediate/leaf fixture material that captures the expected `SignedData` container shape, embedded signer certificate and chain handling, encapsulated signed-content wrapping, and callback canonicalization metadata behavior for the upcoming CMS path.
+- Add a CMS verification contract suite with frozen CMS `SignedData` fixtures covering trust-anchor success, missing and wrong chains, and expired root/intermediate/leaf certificate cases.
 
 ### Changed
 

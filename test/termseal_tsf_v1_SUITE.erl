@@ -14,6 +14,8 @@
          canonical_payload_matches_term_to_binary_minor_v2/1,
          rsa_fixture_roundtrip/1,
          ec_fixture_roundtrip/1,
+         expired_signer_certificate_is_accepted_by_default/1,
+         validate_signer_cert_expiration_rejects_expired_signer_certificate/1,
          generated_signed_boxes_roundtrip/1,
          multicert_verification/1,
          bad_signature_behavior/1,
@@ -34,6 +36,8 @@ all() ->
      canonical_payload_matches_term_to_binary_minor_v2,
      rsa_fixture_roundtrip,
      ec_fixture_roundtrip,
+     expired_signer_certificate_is_accepted_by_default,
+     validate_signer_cert_expiration_rejects_expired_signer_certificate,
      generated_signed_boxes_roundtrip,
      multicert_verification,
      bad_signature_behavior,
@@ -88,6 +92,21 @@ ec_fixture_roundtrip(Config) ->
     ?assertEqual({verified, fixture_term()}, termseal:unseal(Box, ec_certs(Config))),
     ?assertThrow(bad_signature, termseal:unseal(Box, rsa_certs(Config))),
     ?assertThrow(bad_signature, termseal:unseal(Box, [])).
+
+expired_signer_certificate_is_accepted_by_default(Config) ->
+    Box = load_fixture(Config, ["seals", "fixture_tsf_v1_rsa_signed.base64"]),
+    ?assertEqual({verified, fixture_term()}, termseal:unseal(Box, expired_rsa_certs(Config))).
+
+validate_signer_cert_expiration_rejects_expired_signer_certificate(Config) ->
+    Box = load_fixture(Config, ["seals", "fixture_tsf_v1_rsa_signed.base64"]),
+    ?assertThrow(
+        bad_signature,
+        termseal:unseal(
+            Box,
+            expired_rsa_certs(Config),
+            #{validate_signer_cert_expiration => true}
+        )
+    ).
 
 
 generated_signed_boxes_roundtrip(Config) ->
@@ -164,6 +183,9 @@ ec_key(Config) ->
 
 rsa_certs(Config) ->
     termseal:load_certificates(fixture_path(Config, ["certs", "CA_rsa.crt"])).
+
+expired_rsa_certs(Config) ->
+    termseal:load_certificates(fixture_path(Config, ["certs", "expired_CA_rsa.crt"])).
 
 
 ec_certs(Config) ->

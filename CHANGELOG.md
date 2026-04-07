@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add a CommonTest TSF v1 regression baseline with frozen compatibility fixtures for signed and unsigned seals, malformed-input handling, and key-loading edge cases.
 - Add `termseal_cbor` as a standalone deterministic CBOR codec and `termseal_cbor_erlang` as the Erlang-term mapping profile for canonical signing payloads.
-- Add `termseal:canonicalization_id/0`, `signing_payload/1,2`, and `signing_request/1,2` for explicit canonical payload generation independent from legacy TSF v1 sealing.
+- Add `canonical_form/1,2` for explicit canonical-form generation independent from legacy TSF v1 sealing.
 - Add focused Common Test coverage for canonical CBOR float rules, malformed-CBOR rejection, non-canonical bignums, unsupported Erlang runtime terms, and decode-side map-key restrictions.
 - Add a CMS sealing contract suite with dedicated CMS root/intermediate/leaf fixture material that captures the expected `SignedData` container shape, embedded signer certificate and chain handling, encapsulated signed-content wrapping, and callback canonicalization metadata behavior for the upcoming CMS path.
 - Add a CMS verification contract suite with frozen CMS `SignedData` fixtures covering trust-anchor success, missing and wrong chains, and expired root/intermediate/leaf certificate cases.
@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configure Dialyzer to include the OTP applications needed for `public_key`-based analysis.
 - Replace the earlier custom canonical byte-format draft with the normative `termseal_cbor_erlang_v1` deterministic-CBOR profile, including Erlang extension tags for atoms and tuples and explicit rejection of improper lists and non-byte-aligned bitstrings.
 - Tighten deterministic CBOR decoding to reject invalid UTF-8 text and NaN float encodings with the documented canonicalization errors.
+- Extend `termseal:seal/2` so map-based signer specs now produce CMS `SignedData` with deterministic wrapped signed content, embedded signer certificate and chain material, callback requests shaped around the exact bytes and digest to sign, and explicit `rsa_pkcs1_v1_5`, `rsa_pss`, and `ecdsa` scheme handling while bare-key calls remain TSF v1.
 
 ## [0.1.1] - 2024-09-05
 

@@ -23,6 +23,10 @@ Common Test contract coverage for the planned CMS sealing path in `termseal`.
 -export([local_signer_spec_produces_cms_signed_data/1,
          local_signer_spec_embeds_signer_certificate_and_chain/1,
          local_signer_spec_wraps_payload_with_signed_metadata/1,
+         local_signer_spec_supports_rsa_pkcs1_v1_5/1,
+         local_signer_spec_supports_rsa_pss/1,
+         local_signer_spec_supports_ecdsa/1,
+         local_signer_spec_rejects_incompatible_signature_scheme/1,
          callback_signer_spec_produces_cms_signed_data/1,
          callback_signer_spec_embeds_signer_certificate_and_chain/1,
          callback_signer_receives_canonicalization_metadata/1]).
@@ -34,6 +38,10 @@ all() ->
     [local_signer_spec_produces_cms_signed_data,
      local_signer_spec_embeds_signer_certificate_and_chain,
      local_signer_spec_wraps_payload_with_signed_metadata,
+     local_signer_spec_supports_rsa_pkcs1_v1_5,
+     local_signer_spec_supports_rsa_pss,
+     local_signer_spec_supports_ecdsa,
+     local_signer_spec_rejects_incompatible_signature_scheme,
      callback_signer_spec_produces_cms_signed_data,
      callback_signer_spec_embeds_signer_certificate_and_chain,
      callback_signer_receives_canonicalization_metadata].
@@ -52,27 +60,27 @@ local_signer_spec_produces_cms_signed_data(Config) ->
     Box = termseal:seal(
         fixture_term(),
         #{
-            signer_key => signer_key(Config),
-            signer_cert => signer_cert_der(Config),
+            signer_key => rsa_signer_key(Config),
+            signer_cert => rsa_signer_cert_der(Config),
             chain => Chain,
             signature_hash => sha256,
-            signature_scheme => direct_signature
+            signature_scheme => rsa_pkcs1_v1_5
         }
     ),
     _ = assert_is_cms_signed_data(Box),
     ok.
 
 local_signer_spec_embeds_signer_certificate_and_chain(Config) ->
-    SignerCertDer = signer_cert_der(Config),
+    SignerCertDer = rsa_signer_cert_der(Config),
     Chain = [intermediate_cert_der(Config)],
     Box = termseal:seal(
         fixture_term(),
         #{
-            signer_key => signer_key(Config),
+            signer_key => rsa_signer_key(Config),
             signer_cert => SignerCertDer,
             chain => Chain,
             signature_hash => sha256,
-            signature_scheme => direct_signature
+            signature_scheme => rsa_pkcs1_v1_5
         }
     ),
     {_ContentInfo, SignedData} = assert_is_cms_signed_data(Box),
@@ -84,22 +92,85 @@ local_signer_spec_wraps_payload_with_signed_metadata(Config) ->
     Box = termseal:seal(
         fixture_term(),
         #{
-            signer_key => signer_key(Config),
-            signer_cert => signer_cert_der(Config),
+            signer_key => rsa_signer_key(Config),
+            signer_cert => rsa_signer_cert_der(Config),
             chain => [intermediate_cert_der(Config)],
             signature_hash => sha256,
-            signature_scheme => direct_signature
+            signature_scheme => rsa_pkcs1_v1_5
         }
     ),
     {_ContentInfo, SignedData} = assert_is_cms_signed_data(Box),
     EncapsulatedContent = encapsulated_content(SignedData),
-    CanonicalPayload = termseal:signing_payload(fixture_term()),
+    CanonicalPayload = termseal:canonical_form(fixture_term()),
     ?assertNotEqual(asn1_NOVALUE, EncapsulatedContent),
     ?assertNotEqual(CanonicalPayload, EncapsulatedContent).
 
+local_signer_spec_supports_rsa_pkcs1_v1_5(Config) ->
+    Box = termseal:seal(
+        fixture_term(),
+        #{
+            signer_key => rsa_signer_key(Config),
+            signer_cert => rsa_signer_cert_der(Config),
+            chain => [intermediate_cert_der(Config)],
+            signature_hash => sha256,
+            signature_scheme => rsa_pkcs1_v1_5
+        }
+    ),
+    {_ContentInfo, SignedData} = assert_is_cms_signed_data(Box),
+    SignerInfo = signer_info(SignedData),
+    ?assertEqual(
+        ?'sha256WithRSAEncryption',
+        signer_signature_algorithm(SignerInfo)
+    ).
+
+local_signer_spec_supports_rsa_pss(Config) ->
+    Box = termseal:seal(
+        fixture_term(),
+        #{
+            signer_key => rsa_signer_key(Config),
+            signer_cert => rsa_signer_cert_der(Config),
+            chain => [intermediate_cert_der(Config)],
+            signature_hash => sha256,
+            signature_scheme => rsa_pss
+        }
+    ),
+    {_ContentInfo, SignedData} = assert_is_cms_signed_data(Box),
+    SignerInfo = signer_info(SignedData),
+    ?assertEqual(?'id-RSASSA-PSS', signer_signature_algorithm(SignerInfo)).
+
+local_signer_spec_supports_ecdsa(Config) ->
+    Box = termseal:seal(
+        fixture_term(),
+        #{
+            signer_key => ec_signer_key(Config),
+            signer_cert => ec_signer_cert_der(Config),
+            chain => [intermediate_cert_der(Config)],
+            signature_hash => sha256,
+            signature_scheme => ecdsa
+        }
+    ),
+    {_ContentInfo, SignedData} = assert_is_cms_signed_data(Box),
+    SignerInfo = signer_info(SignedData),
+    ?assertEqual(?'ecdsa-with-SHA256', signer_signature_algorithm(SignerInfo)).
+
+local_signer_spec_rejects_incompatible_signature_scheme(Config) ->
+    ?assertThrow(
+        unsupported_signature_scheme,
+        termseal:seal(
+            fixture_term(),
+            #{
+                signer_key => rsa_signer_key(Config),
+                signer_cert => rsa_signer_cert_der(Config),
+                chain => [intermediate_cert_der(Config)],
+                signature_hash => sha256,
+                signature_scheme => ecdsa
+            }
+        )
+    ).
+
 callback_signer_spec_produces_cms_signed_data(Config) ->
-    Key = signer_key(Config),
-    CertDer = signer_cert_der(Config),
+    Key = rsa_signer_key(Config),
+    CertDer = rsa_signer_cert_der(Config),
     Chain = [intermediate_cert_der(Config)],
     SignerFun = fun(Request) ->
         #{
@@ -113,15 +184,15 @@ callback_signer_spec_produces_cms_signed_data(Config) ->
         #{
             signer_fun => SignerFun,
             signature_hash => sha256,
-            signature_scheme => direct_signature
+            signature_scheme => rsa_pkcs1_v1_5
         }
     ),
     _ = assert_is_cms_signed_data(Box),
     ok.
 
 callback_signer_spec_embeds_signer_certificate_and_chain(Config) ->
-    Key = signer_key(Config),
-    SignerCertDer = signer_cert_der(Config),
+    Key = rsa_signer_key(Config),
+    SignerCertDer = rsa_signer_cert_der(Config),
     Chain = [intermediate_cert_der(Config)],
     SignerFun = fun(Request) ->
         #{
@@ -135,7 +206,7 @@ callback_signer_spec_embeds_signer_certificate_and_chain(Config) ->
         #{
             signer_fun => SignerFun,
             signature_hash => sha256,
-            signature_scheme => direct_signature
+            signature_scheme => rsa_pkcs1_v1_5
         }
     ),
     {_ContentInfo, SignedData} = assert_is_cms_signed_data(Box),
@@ -145,8 +216,8 @@ callback_signer_spec_embeds_signer_certificate_and_chain(Config) ->
 
 callback_signer_receives_canonicalization_metadata(Config) ->
     Parent = self(),
-    Key = signer_key(Config),
-    CertDer = signer_cert_der(Config),
+    Key = rsa_signer_key(Config),
+    CertDer = rsa_signer_cert_der(Config),
     Chain = [intermediate_cert_der(Config)],
     SignerFun = fun(Request) ->
         Parent ! {signer_request, Request},
@@ -161,19 +232,17 @@ callback_signer_receives_canonicalization_metadata(Config) ->
         #{
             signer_fun => SignerFun,
             signature_hash => sha256,
-            signature_scheme => direct_signature
+            signature_scheme => rsa_pkcs1_v1_5
         }
     ),
-    ExpectedPayload = termseal:signing_payload(fixture_term()),
-    ExpectedDigest = crypto:hash(sha256, ExpectedPayload),
+    ExpectedCanonicalForm = termseal:canonical_form(fixture_term()),
+    ExpectedData = expected_signed_content(ExpectedCanonicalForm),
     ExpectedRequest = #{
         canonicalization_id => termseal_cbor_erlang_v1,
-        payload => ExpectedPayload,
-        payload_digest => ExpectedDigest,
-        signing_digest => ExpectedDigest,
-        signing_subject => payload,
+        data => ExpectedData,
+        signature_digest => crypto:hash(sha256, ExpectedData),
         signature_hash => sha256,
-        signature_scheme => direct_signature
+        signature_scheme => rsa_pkcs1_v1_5
     },
     receive
         {signer_request, Request} ->
@@ -188,11 +257,18 @@ callback_signer_receives_canonicalization_metadata(Config) ->
 fixture_term() ->
     {1, a, #{foo => "bar", buz => 42}, [-1]}.
 
-signer_key(Config) ->
-    termseal:load_private_key(fixture_path(Config, ["keys", "cms_signer.key"])).
+rsa_signer_key(Config) ->
+    termseal:load_private_key(fixture_path(Config, ["keys", "cms_rsa_signer.key"])).
 
-signer_cert_der(Config) ->
-    [Entry] = [Der || {'Certificate', Der, not_encrypted} <- pem_entries(Config, ["certs", "cms_signer.crt"])],
+ec_signer_key(Config) ->
+    termseal:load_private_key(fixture_path(Config, ["keys", "cms_ec_signer.key"])).
+
+rsa_signer_cert_der(Config) ->
+    [Entry] = [Der || {'Certificate', Der, not_encrypted} <- pem_entries(Config, ["certs", "cms_rsa_signer.crt"])],
+    Entry.
+
+ec_signer_cert_der(Config) ->
+    [Entry] = [Der || {'Certificate', Der, not_encrypted} <- pem_entries(Config, ["certs", "cms_ec_signer.crt"])],
     Entry.
 
 intermediate_cert_der(Config) ->
@@ -200,9 +276,12 @@ intermediate_cert_der(Config) ->
     Entry.
 
 sign_request_digest(Request, Key) ->
-    public_key:sign({digest, maps:get(signing_digest, Request)},
-                    maps:get(signature_hash, Request),
-                    Key).
+    public_key:sign(
+        {digest, maps:get(signature_digest, Request)},
+        maps:get(signature_hash, Request),
+        Key,
+        signature_options(Request)
+    ).
 
 assert_is_cms_content_info(Box) when is_binary(Box) ->
     case Box of
@@ -225,6 +304,17 @@ assert_is_cms_signed_data(Box) ->
     ?assertMatch(#'SignedData'{}, SignedData),
     {ContentInfo, SignedData}.
 
+signer_info(#'SignedData'{signerInfos = [SignerInfo]}) ->
+    SignerInfo.
+
+signer_signature_algorithm(#'SignerInfo'{
+                              signatureAlgorithm =
+                                  #'SignatureAlgorithmIdentifier'{
+                                      algorithm = Algorithm
+                                  }
+                          }) ->
+    Algorithm.
+
 embedded_certificate_ders(#'SignedData'{certificates = Certificates}) when is_list(Certificates) ->
     [public_key:der_encode('Certificate', Cert)
      || {certificate, Cert} <- Certificates];
@@ -236,6 +326,28 @@ encapsulated_content(#'SignedData'{
                             #'EncapsulatedContentInfo'{eContent = Content}
                     }) ->
     Content.
+
+expected_signed_content(Payload) ->
+    {ok, SignedContent} = termseal_cbor:encode(
+        {map, [{{text, <<"payload">>}, {bytes, Payload}},
+               {{text, <<"canonicalization_id">>},
+                {text, <<"termseal_cbor_erlang_v1">>}}]}
+    ),
+    SignedContent.
+
+signature_options(#{signature_scheme := rsa_pss, signature_hash := SignatureHash}) ->
+    [{rsa_padding, rsa_pkcs1_pss_padding},
+     {rsa_pss_saltlen, hash_size(SignatureHash)},
+     {rsa_mgf1_md, SignatureHash}];
+signature_options(_Request) ->
+    [].
+
+hash_size(sha256) ->
+    32;
+hash_size(sha384) ->
+    48;
+hash_size(sha512) ->
+    64.
 
 pem_entries(Config, RelativePath) ->
     public_key:pem_decode(read_binary_file(Config, RelativePath)).

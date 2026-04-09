@@ -21,6 +21,8 @@ Common Test coverage for the deterministic CBOR codec.
 -export([encode_preferred_integers/1,
          encode_sorts_map_keys_deterministically/1,
          encode_binary64_floats/1,
+         roundtrip_large_deep_mixed_value/1,
+         encode_large_deep_mixed_value_deterministically/1,
          python_decodes_generated_cbor/1,
          python_generated_cbor_decodes_in_erlang/1,
          roundtrip_tagged_values/1,
@@ -41,6 +43,8 @@ all() ->
     [encode_preferred_integers,
      encode_sorts_map_keys_deterministically,
      encode_binary64_floats,
+     roundtrip_large_deep_mixed_value,
+     encode_large_deep_mixed_value_deterministically,
      python_decodes_generated_cbor,
      python_generated_cbor_decodes_in_erlang,
      roundtrip_tagged_values,
@@ -86,6 +90,16 @@ encode_sorts_map_keys_deterministically(_Config) ->
 encode_binary64_floats(_Config) ->
     ?assertEqual({ok, <<16#FB, 16#3F, 16#F8, 0, 0, 0, 0, 0, 0>>},
                  termseal_cbor:encode(1.5)).
+
+roundtrip_large_deep_mixed_value(_Config) ->
+    Value = large_deep_cbor_value(),
+    {ok, Encoded} = termseal_cbor:encode(Value),
+    ?assertEqual({ok, Value}, termseal_cbor:decode(Encoded)).
+
+encode_large_deep_mixed_value_deterministically(_Config) ->
+    ValueA = large_deep_cbor_value(),
+    ValueB = reordered_large_deep_cbor_value(),
+    ?assertEqual(termseal_cbor:encode(ValueA), termseal_cbor:encode(ValueB)).
 
 python_decodes_generated_cbor(_Config) ->
     with_python_cbor2(
@@ -181,3 +195,65 @@ python_generic_cbor_value() ->
 
 python_generic_cbor_json() ->
     <<"{\"map\":[[{\"bytes\":\"0102\"},{\"array\":[1,-2,{\"text\":\"ok\"},{\"tag\":50001,\"value\":{\"bytes\":\"ff\"}}]}],[{\"text\":\"alpha\"},500]]}">>.
+
+large_deep_cbor_value() ->
+    deep_cbor_branch(12).
+
+reordered_large_deep_cbor_value() ->
+    deep_cbor_branch_reordered(12).
+
+deep_cbor_branch(0) ->
+    {map, [{0, {array, [0,
+                        -1,
+                        1.5,
+                        {bytes, <<16#10, 16#20, 16#30>>},
+                        {text, <<"leaf">>},
+                        {tag, 60000, {bytes, <<16#AA, 16#BB>>}}]}},
+           {{text, <<"meta">>},
+            {map, [{1, {text, <<"done">>}},
+                   {{bytes, <<"k">>}, {array, []}}]}}]};
+deep_cbor_branch(Level) ->
+    Child = deep_cbor_branch(Level - 1),
+    {map, [{0, Child},
+           {{text, <<"branch">>},
+            {array, [Level,
+                     -Level,
+                     Level / 2,
+                     {bytes, <<Level, Level:16>>},
+                     {text, list_to_binary(io_lib:format("level-~B", [Level]))},
+                     {tag, 61000 + Level,
+                      {map, [{0, {bytes, <<Level, (Level + 1), (Level + 2)>>}},
+                             {{text, <<"depth">>}, Level}]}}]}},
+           {{bytes, <<"payload">>},
+            {map, [{1, {tag, 62000 + Level, {bytes, <<Level, (Level + 1)>>}}},
+                   {{text, <<"tail">>},
+                    {array, [{text, <<"ok">>}, {bytes, <<0, Level>>}, Level + 100]}}]}},
+           {{text, <<"child_kind">>}, {text, <<"single-recursive-edge">>}}]}.
+
+deep_cbor_branch_reordered(0) ->
+    {map, [{{text, <<"meta">>},
+            {map, [{{bytes, <<"k">>}, {array, []}},
+                   {1, {text, <<"done">>}}]}},
+           {0, {array, [0,
+                        -1,
+                        1.5,
+                        {bytes, <<16#10, 16#20, 16#30>>},
+                        {text, <<"leaf">>},
+                        {tag, 60000, {bytes, <<16#AA, 16#BB>>}}]}}]};
+deep_cbor_branch_reordered(Level) ->
+    Child = deep_cbor_branch_reordered(Level - 1),
+    {map, [{{bytes, <<"payload">>},
+            {map, [{{text, <<"tail">>},
+                    {array, [{text, <<"ok">>}, {bytes, <<0, Level>>}, Level + 100]}},
+                   {1, {tag, 62000 + Level, {bytes, <<Level, (Level + 1)>>}}}]}},
+           {{text, <<"branch">>},
+            {array, [Level,
+                     -Level,
+                     Level / 2,
+                     {bytes, <<Level, Level:16>>},
+                     {text, list_to_binary(io_lib:format("level-~B", [Level]))},
+                     {tag, 61000 + Level,
+                      {map, [{{text, <<"depth">>}, Level},
+                             {0, {bytes, <<Level, (Level + 1), (Level + 2)>>}}]}}]}},
+           {{text, <<"child_kind">>}, {text, <<"single-recursive-edge">>}},
+           {0, Child}]}.

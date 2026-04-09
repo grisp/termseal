@@ -22,6 +22,8 @@ Common Test coverage for the Erlang-to-CBOR profile layer.
          encode_tuple_uses_tagged_array/1,
          encode_large_integer_uses_standard_bignum_tag/1,
          encode_preserves_signed_zero_float/1,
+         roundtrip_large_deep_mixed_term/1,
+         encode_large_deep_mixed_term_deterministically/1,
          python_decodes_generated_profile/1,
          python_generated_profile_decodes_in_erlang/1,
          roundtrip_nested_term/1,
@@ -45,6 +47,8 @@ all() ->
      encode_tuple_uses_tagged_array,
      encode_large_integer_uses_standard_bignum_tag,
      encode_preserves_signed_zero_float,
+     roundtrip_large_deep_mixed_term,
+     encode_large_deep_mixed_term_deterministically,
      python_decodes_generated_profile,
      python_generated_profile_decodes_in_erlang,
      roundtrip_nested_term,
@@ -99,6 +103,16 @@ encode_preserves_signed_zero_float(_Config) ->
     {ok, NegativeValue} = termseal_cbor_erlang:decode(NegativeZero),
     ?assertEqual({ok, PositiveZero}, termseal_cbor_erlang:encode(PositiveValue)),
     ?assertEqual({ok, NegativeZero}, termseal_cbor_erlang:encode(NegativeValue)).
+
+roundtrip_large_deep_mixed_term(_Config) ->
+    Term = large_deep_erlang_term(),
+    {ok, Encoded} = termseal_cbor_erlang:encode(Term),
+    ?assertEqual({ok, Term}, termseal_cbor_erlang:decode(Encoded)).
+
+encode_large_deep_mixed_term_deterministically(_Config) ->
+    TermA = large_deep_erlang_term(),
+    TermB = reordered_large_deep_erlang_term(),
+    ?assertEqual(termseal_cbor_erlang:encode(TermA), termseal_cbor_erlang:encode(TermB)).
 
 python_decodes_generated_profile(_Config) ->
     with_python_cbor2(
@@ -199,3 +213,56 @@ python_erlang_term() ->
 
 python_erlang_cbor_json() ->
     <<"{\"tag\":50001,\"value\":{\"array\":[{\"tag\":50000,\"value\":{\"text\":\"foo\"}},{\"map\":[[42,{\"bytes\":\"62696e\"}],[{\"bytes\":\"626c6f62\"},{\"tag\":50000,\"value\":{\"text\":\"baz\"}}],[{\"tag\":50000,\"value\":{\"text\":\"bar\"}},{\"array\":[1,2]}]]}]}}">>.
+
+large_deep_erlang_term() ->
+    deep_erlang_term(10).
+
+reordered_large_deep_erlang_term() ->
+    deep_erlang_term_reordered(10).
+
+deep_erlang_term(0) ->
+    {leaf,
+     #{alpha => [foo, 0, -1, 1.25, 18446744073709551616, -18446744073709551617],
+       7 => {tuple_leaf, <<"bin">>, [bar, baz]},
+       <<"bytes-key">> => #{beta => <<"done">>, 8 => []}}};
+deep_erlang_term(Level) ->
+    Child = deep_erlang_term(Level - 1),
+    {level,
+     Level,
+     #{alpha => [foo,
+                 Level,
+                 -Level,
+                 Level / 2,
+                 {mix, <<Level, (Level + 1), (Level + 2)>>, [bar, {baz, Level + 10}]},
+                 Child],
+       Level => {branch,
+                 <<Level, (Level + 1)>>,
+                 [18446744073709551616 + Level, -18446744073709551617 - Level]},
+       <<"bytes-key">> => #{beta => {leaf, Level + 1000},
+                            0 => [<<"bin">>, zig, {zag, Level * Level}],
+                            <<"nested">> => {marker, Level, <<"single-recursive-edge">>}}}}.
+
+deep_erlang_term_reordered(0) ->
+    {leaf,
+     maps:from_list([{<<"bytes-key">>, maps:from_list([{8, []}, {beta, <<"done">>}])},
+                     {7, {tuple_leaf, <<"bin">>, [bar, baz]}},
+                     {alpha, [foo, 0, -1, 1.25, 18446744073709551616, -18446744073709551617]}])};
+deep_erlang_term_reordered(Level) ->
+    Child = deep_erlang_term_reordered(Level - 1),
+    {level,
+     Level,
+     maps:from_list([{<<"bytes-key">>,
+                      maps:from_list([{<<"nested">>, {marker, Level, <<"single-recursive-edge">>}},
+                                      {0, [<<"bin">>, zig, {zag, Level * Level}]},
+                                      {beta, {leaf, Level + 1000}}])},
+                     {Level,
+                      {branch,
+                       <<Level, (Level + 1)>>,
+                       [18446744073709551616 + Level, -18446744073709551617 - Level]}},
+                     {alpha,
+                      [foo,
+                       Level,
+                       -Level,
+                       Level / 2,
+                       {mix, <<Level, (Level + 1), (Level + 2)>>, [bar, {baz, Level + 10}]},
+                       Child]}])}.

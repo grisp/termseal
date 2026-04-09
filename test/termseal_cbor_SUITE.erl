@@ -21,6 +21,8 @@ Common Test coverage for the deterministic CBOR codec.
 -export([encode_preferred_integers/1,
          encode_sorts_map_keys_deterministically/1,
          encode_binary64_floats/1,
+         python_decodes_generated_cbor/1,
+         python_generated_cbor_decodes_in_erlang/1,
          roundtrip_tagged_values/1,
          roundtrip_signed_zero_float/1,
          reject_noncanonical_integer_width/1,
@@ -39,6 +41,8 @@ all() ->
     [encode_preferred_integers,
      encode_sorts_map_keys_deterministically,
      encode_binary64_floats,
+     python_decodes_generated_cbor,
+     python_generated_cbor_decodes_in_erlang,
      roundtrip_tagged_values,
      roundtrip_signed_zero_float,
      reject_noncanonical_integer_width,
@@ -82,6 +86,25 @@ encode_sorts_map_keys_deterministically(_Config) ->
 encode_binary64_floats(_Config) ->
     ?assertEqual({ok, <<16#FB, 16#3F, 16#F8, 0, 0, 0, 0, 0, 0>>},
                  termseal_cbor:encode(1.5)).
+
+python_decodes_generated_cbor(_Config) ->
+    with_python_cbor2(
+      fun() ->
+          Value = python_generic_cbor_value(),
+          {ok, Encoded} = termseal_cbor:encode(Value),
+          ?assertEqual({ok, python_generic_cbor_json()},
+                       termseal_python_cbor_interop:decode_to_normalized_json(Encoded))
+      end).
+
+python_generated_cbor_decodes_in_erlang(_Config) ->
+    with_python_cbor2(
+      fun() ->
+          {ok, Encoded} =
+              termseal_python_cbor_interop:encode_from_normalized_json(
+                  python_generic_cbor_json()),
+          ?assertEqual({ok, python_generic_cbor_value()},
+                       termseal_cbor:decode(Encoded))
+      end).
 
 roundtrip_tagged_values(_Config) ->
     Value = {tag, 50001, {array, [1, -2, {bytes, <<1, 2>>}, {text, <<"ok">>}]}},
@@ -139,3 +162,22 @@ reject_invalid_utf8_text(_Config) ->
 
 reject_simple_values_outside_profile(_Config) ->
     ?assertEqual({error, non_canonical_cbor}, termseal_cbor:decode(<<16#F5>>)).
+
+
+%=== INTERNAL FUNCTIONS ========================================================
+
+with_python_cbor2(Fun) ->
+    case termseal_python_cbor_interop:ensure_available() of
+        ok ->
+            Fun();
+        {skip, Reason} ->
+            {skip, Reason}
+    end.
+
+python_generic_cbor_value() ->
+    {map, [{{bytes, <<1, 2>>},
+            {array, [1, -2, {text, <<"ok">>}, {tag, 50001, {bytes, <<16#FF>>}}]}},
+           {{text, <<"alpha">>}, 500}]}.
+
+python_generic_cbor_json() ->
+    <<"{\"map\":[[{\"bytes\":\"0102\"},{\"array\":[1,-2,{\"text\":\"ok\"},{\"tag\":50001,\"value\":{\"bytes\":\"ff\"}}]}],[{\"text\":\"alpha\"},500]]}">>.

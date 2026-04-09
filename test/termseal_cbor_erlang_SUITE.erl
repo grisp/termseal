@@ -22,6 +22,8 @@ Common Test coverage for the Erlang-to-CBOR profile layer.
          encode_tuple_uses_tagged_array/1,
          encode_large_integer_uses_standard_bignum_tag/1,
          encode_preserves_signed_zero_float/1,
+         python_decodes_generated_profile/1,
+         python_generated_profile_decodes_in_erlang/1,
          roundtrip_nested_term/1,
          map_encoding_is_insertion_order_independent/1,
          reject_improper_lists/1,
@@ -43,6 +45,8 @@ all() ->
      encode_tuple_uses_tagged_array,
      encode_large_integer_uses_standard_bignum_tag,
      encode_preserves_signed_zero_float,
+     python_decodes_generated_profile,
+     python_generated_profile_decodes_in_erlang,
      roundtrip_nested_term,
      map_encoding_is_insertion_order_independent,
      reject_improper_lists,
@@ -95,6 +99,25 @@ encode_preserves_signed_zero_float(_Config) ->
     {ok, NegativeValue} = termseal_cbor_erlang:decode(NegativeZero),
     ?assertEqual({ok, PositiveZero}, termseal_cbor_erlang:encode(PositiveValue)),
     ?assertEqual({ok, NegativeZero}, termseal_cbor_erlang:encode(NegativeValue)).
+
+python_decodes_generated_profile(_Config) ->
+    with_python_cbor2(
+      fun() ->
+          Term = python_erlang_term(),
+          {ok, Encoded} = termseal_cbor_erlang:encode(Term),
+          ?assertEqual({ok, python_erlang_cbor_json()},
+                       termseal_python_cbor_interop:decode_to_normalized_json(Encoded))
+      end).
+
+python_generated_profile_decodes_in_erlang(_Config) ->
+    with_python_cbor2(
+      fun() ->
+          {ok, Encoded} =
+              termseal_python_cbor_interop:encode_from_normalized_json(
+                  python_erlang_cbor_json()),
+          ?assertEqual({ok, python_erlang_term()},
+                       termseal_cbor_erlang:decode(Encoded))
+      end).
 
 roundtrip_nested_term(_Config) ->
     Term = {foo, #{bar => [1, 2], 42 => <<"bin">>, <<"blob">> => baz}},
@@ -159,3 +182,20 @@ reject_unknown_atom_name_in_safe_mode(_Config) ->
         termseal_cbor_erlang:decode(<<16#D9, 16#C3, 16#50, 16#78, 30,
                                       "termseal_nonexistent_atom_name">>)
     ).
+
+
+%=== INTERNAL FUNCTIONS ========================================================
+
+with_python_cbor2(Fun) ->
+    case termseal_python_cbor_interop:ensure_available() of
+        ok ->
+            Fun();
+        {skip, Reason} ->
+            {skip, Reason}
+    end.
+
+python_erlang_term() ->
+    {foo, #{bar => [1, 2], 42 => <<"bin">>, <<"blob">> => baz}}.
+
+python_erlang_cbor_json() ->
+    <<"{\"tag\":50001,\"value\":{\"array\":[{\"tag\":50000,\"value\":{\"text\":\"foo\"}},{\"map\":[[42,{\"bytes\":\"62696e\"}],[{\"bytes\":\"626c6f62\"},{\"tag\":50000,\"value\":{\"text\":\"baz\"}}],[{\"tag\":50000,\"value\":{\"text\":\"bar\"}},{\"array\":[1,2]}]]}]}}">>.

@@ -226,6 +226,17 @@ Verification fixtures follow these rules:
 - expiry tests use explicitly expired certificates with
   `2024-06-01T00:00:00Z` on only the certificate under test
 - all test fixture material is regenerated from `test/generate_test_fixtures.py`
+- the CBOR interoperability tests use `python3` plus the optional `cbor2`
+  module; if those dependencies are missing, the Python interop test cases are
+  skipped rather than failing the whole suite
+
+Ubuntu test dependencies for the Python CBOR interoperability cases:
+
+    $ sudo apt install python3 python3-cbor2
+
+Alternative installation with `pip`:
+
+    $ python3 -m pip install --user cbor2
 
 To run the test suite:
 

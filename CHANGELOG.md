@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add a reproducible test fixture generator at `test/generate_test_fixtures.py` for CMS verification, CMS sealing, and TSF v1 certificate material.
 - Add test coverage for opt-in signer-certificate expiration validation in both legacy TSF v1 direct verification and CMS direct-cert verification.
 - Add tamper-path verification coverage for TSF v1 payload mutation and CMS signature and payload mutation.
+- Add optional Python `cbor2` interoperability coverage for `termseal_cbor` and `termseal_cbor_erlang`.
 
 ### Changed
 
@@ -28,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Extend `termseal:seal/2` so map-based signer specs now produce CMS `SignedData` with deterministic wrapped signed content, embedded signer certificate and chain material, callback requests shaped around the exact bytes and digest to sign, and explicit `rsa_pkcs1_v1_5`, `rsa_pss`, and `ecdsa` scheme handling while bare-key calls remain TSF v1.
 - Use OTP `pkix_path_validation/3` for CMS trust-anchor verification with the correct certificate-chain ordering, and normalize all non-expired verification fixtures to the same long-lived `2099-01-01` expiry.
 - Add `validate_signer_cert_expiration` as an opt-in for direct trusted-certificate verification in both TSF v1 unsealing and CMS direct-cert unsealing.
+- Document the optional Ubuntu and `pip` installation paths for the Python CBOR interoperability test dependency and make the interop tests skip cleanly when `cbor2` is unavailable.
 
 ## [0.1.1] - 2024-09-05
 
